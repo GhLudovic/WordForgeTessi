@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
+use App\Entity\Player;
 use App\Entity\Vote;
+use App\Entity\Word;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -18,6 +20,15 @@ class VoteRepository extends ServiceEntityRepository
         parent::__construct($registry, Vote::class);
     }
 
+    public function hasVoted(Player $player, Word $word): bool
+    {
+        return null !== $this->findOneBy(['player' => $player, 'word' => $word]);
+    }
+
+    public function countByWord(Word $word): int
+    {
+        return $this->count(['word' => $word]);
+    }
     //    /**
     //     * @return Vote[] Returns an array of Vote objects
     //     */
