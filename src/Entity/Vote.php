@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Entity;
 
 use App\Enum\VoteValue;
@@ -9,7 +11,6 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: VoteRepository::class)]
 #[ORM\Table(name: 'vote')]
-
 #[ORM\UniqueConstraint(name: 'uniq_vote_player_word', columns: ['player_id', 'word_id'])]
 class Vote
 {

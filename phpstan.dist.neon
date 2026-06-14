@@ -1,0 +1,16 @@
+parameters:
+    level: 8
+    paths:
+        - src
+        - tests
+    symfony:
+        containerXmlPath: var/cache/dev/App_KernelDevDebugContainer.xml
+    ignoreErrors:
+        # getAllowedEnvs() est appelée dynamiquement par le Kernel Symfony : PHPStan ne voit pas l'appel.
+        -
+            identifier: method.unused
+            path: src/Kernel.php
+        # Garde de compatibilité conservée telle quelle dans le bootstrap généré par Symfony.
+        -
+            identifier: function.alreadyNarrowedType
+            path: tests/bootstrap.php
