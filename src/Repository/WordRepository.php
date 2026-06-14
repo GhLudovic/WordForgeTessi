@@ -18,6 +18,11 @@ class WordRepository extends ServiceEntityRepository
         parent::__construct($registry, Word::class);
     }
 
+    public function findOneByValue(string $value): ?Word
+    {
+        return $this->findOneBy(['value' => $value]);
+    }
+
     //    /**
     //     * @return Word[] Returns an array of Word objects
     //     */
