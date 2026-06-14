@@ -13,7 +13,7 @@ final class MaxLengthConstraint implements WordConstraintInterface
     public function validate(string $value): array
     {
         if (mb_strlen($value) > $this->maxLength) {
-            return [sprintf('Word must not exceed %d characters.', $this->maxLength)];
+            return [\sprintf('Word must not exceed %d characters.', $this->maxLength)];
         }
 
         return [];

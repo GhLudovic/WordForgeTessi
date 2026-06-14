@@ -11,7 +11,6 @@ use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
  * Agrège toutes les contraintes taguées et fusionne leurs violations.
  * Service public : point d'entrée de la validation, consommé par l'API.
  */
-
 #[Autoconfigure(public: true)]
 final class WordValidator
 {
