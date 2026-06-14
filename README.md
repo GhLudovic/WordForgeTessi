@@ -3,21 +3,20 @@
 Backend d'un **dictionnaire collaboratif** : les joueurs proposent des mots,
 et chaque mot inconnu est validé par un vote des 7 premiers joueurs.
 
-> Test technique Symfony. Ce README sera enrichi au fil des étapes (modèle de
-> données, endpoints, fixtures de tokens). En l'état, il couvre l'infrastructure
-> et le lancement du projet.
+> Test technique Symfony. Ce README est enrichi au fil des étapes. En l'état :
+> infrastructure, modèle de données et authentification par Bearer token.
 
 ## Stack
 
-| Composant      | Version            |
-|----------------|--------------------|
-| PHP            | 8.4 (FPM)          |
-| Symfony        | 8.1                |
-| Doctrine ORM   | + migrations       |
-| PostgreSQL     | 16                 |
-| Serveur web    | nginx 1.27         |
-| Tests          | PHPUnit 13         |
-| Orchestration  | Docker Compose     |
+| Composant     | Version        |
+| ------------- | -------------- |
+| PHP           | 8.4 (FPM)      |
+| Symfony       | 8.1            |
+| Doctrine ORM  | + migrations   |
+| PostgreSQL    | 16             |
+| Serveur web   | nginx 1.27     |
+| Tests         | PHPUnit 13     |
+| Orchestration | Docker Compose |
 
 ## Prérequis
 
@@ -34,17 +33,23 @@ docker compose up -d --build
 
 # 2. Installer les dépendances PHP (vendor/ n'est pas versionné)
 docker compose exec php composer install
+
+# 3. Créer le schéma de base de données
+docker compose exec php php bin/console doctrine:migrations:migrate --no-interaction
+
+# 4. Charger les joueurs de test (tokens fixes, voir « Authentification »)
+docker compose exec php php bin/console doctrine:fixtures:load --no-interaction
 ```
 
 L'application répond alors sur **http://localhost:8080**.
 
-> À ce stade aucune route métier n'est définie : `GET /` renvoie un 404 Symfony.
-> C'est attendu et confirme que la chaîne nginx → PHP-FPM → Symfony fonctionne.
+> Toutes les routes exigent un Bearer token (voir « Authentification ») :
+> `GET /api/me` sans token renvoie un **401 JSON**.
 
 ### Ports exposés
 
 | Service    | Hôte   | Conteneur |
-|------------|--------|-----------|
+| ---------- | ------ | --------- |
 | nginx      | `8080` | `80`      |
 | PostgreSQL | `5433` | `5432`    |
 
@@ -68,15 +73,55 @@ Précédence des sources de configuration :
   (non versionné) pointant sur `127.0.0.1:5433`. Un exemple est fourni dans
   le dépôt local.
 
-## Tests
+## Authentification
+
+Toutes les routes sont protégées par un Bearer token qui identifie le joueur
+courant :
+
+```
+Authorization: Bearer <token>
+```
+
+Un token absent ou invalide renvoie un **401 JSON**. Tokens de test (chargés par
+les fixtures) :
+
+| Joueur | Token         |
+| ------ | ------------- |
+| alice  | `token-alice` |
+| bob    | `token-bob`   |
+| carol  | `token-carol` |
+
+`GET /api/me` renvoie le joueur courant — pratique pour valider un token :
 
 ```bash
-docker compose exec php php bin/phpunit
+# 401 sans token
+curl -i http://localhost:8080/api/me
+
+# 200 avec un token valide
+curl -i -H "Authorization: Bearer token-alice" http://localhost:8080/api/me
+# → {"id":1,"username":"alice"}
+```
+
+## Tests
+
+Préparer la base de test (une fois), puis lancer la suite — dans le conteneur :
+
+```bash
+docker compose exec php php bin/console doctrine:database:create --env=test --if-not-exists
+docker compose exec php php bin/console doctrine:migrations:migrate --env=test --no-interaction
+docker compose exec php composer test
 ```
 
 Chaque test est isolé dans une transaction annulée à la fin
 (`dama/doctrine-test-bundle`) : la base de test n'est jamais polluée entre les
 cas.
+
+## Qualité
+
+```bash
+docker compose exec php composer cs-fix    # PHP-CS-Fixer (@Symfony + strict types)
+docker compose exec php composer phpstan   # PHPStan niveau 8
+```
 
 ## Structure du projet
 

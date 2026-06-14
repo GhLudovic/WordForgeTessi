@@ -6,10 +6,11 @@ namespace App\Entity;
 
 use App\Repository\PlayerRepository;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Security\Core\User\UserInterface;
 
 #[ORM\Entity(repositoryClass: PlayerRepository::class)]
 #[ORM\Table(name: 'player')]
-class Player
+class Player implements UserInterface
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -41,5 +42,20 @@ class Player
     public function getToken(): string
     {
         return $this->token;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getRoles(): array
+    {
+        return ['ROLE_USER'];
+    }
+
+    public function getUserIdentifier(): string
+    {
+        \assert('' !== $this->username);
+
+        return $this->username;
     }
 }
