@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Entity\Word;
+use App\Enum\WordStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -21,6 +22,14 @@ class WordRepository extends ServiceEntityRepository
     public function findOneByValue(string $value): ?Word
     {
         return $this->findOneBy(['value' => $value]);
+    }
+
+    /**
+     * @return list<Word>
+     */
+    public function findPending(): array
+    {
+        return $this->findBy(['status' => WordStatus::PENDING]);
     }
 
     //    /**
