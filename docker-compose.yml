@@ -1,0 +1,43 @@
+services:
+  php:
+    build:
+      context: ./docker/php
+    # DATABASE_URL est défini ici comme vraie variable d'environnement : elle a
+    # priorité sur les fichiers .env (y compris .env.local monté dans le conteneur),
+    # ce qui garantit que l'app pointe toujours vers le service "database".
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-wordforge}:${POSTGRES_PASSWORD:-wordforge}@database:5432/${POSTGRES_DB:-wordforge}?serverVersion=${POSTGRES_VERSION:-16}&charset=utf8"
+    volumes:
+      - .:/var/www:rw
+    depends_on:
+      database:
+        condition: service_healthy
+
+  nginx:
+    build:
+      context: ./docker/nginx
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    volumes:
+      - .:/var/www:rw
+    depends_on:
+      - php
+
+  database:
+    image: postgres:${POSTGRES_VERSION:-16}-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-wordforge}
+      POSTGRES_USER: ${POSTGRES_USER:-wordforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wordforge}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-d", "${POSTGRES_DB:-wordforge}", "-U", "${POSTGRES_USER:-wordforge}"]
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - database_data:/var/lib/postgresql/data:rw
+
+volumes:
+  database_data:
