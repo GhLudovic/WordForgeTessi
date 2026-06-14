@@ -13,6 +13,13 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\Vote;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 
+/**
+ * Security Voter statuant sur le droit du joueur courant de poser un vote sur un
+ * mot (distinct de l'entité App\Entity\Vote). Réutilisé par « obtenir un vote »
+ * et « voter ».
+ *
+ * @extends Voter<string, Word>
+ */
 final class VoteEligibilityVoter extends Voter
 {
     public const string CAST = 'CAST_VOTE';
@@ -29,7 +36,7 @@ final class VoteEligibilityVoter extends Voter
     protected function voteOnAttribute(string $attribute, mixed $subject, TokenInterface $token, ?Vote $vote = null): bool
     {
         $player = $token->getUser();
-        if (!$player instanceof Player || !$subject instanceof Word) {
+        if (!$player instanceof Player) {
             return false;
         }
 

@@ -102,6 +102,28 @@ curl -i -H "Authorization: Bearer token-alice" http://localhost:8080/api/me
 # → {"id":1,"username":"alice"}
 ```
 
+## API
+
+Toutes les routes exigent un Bearer token ; réponses JSON cohérentes.
+
+| Action                   | Route                       | Réponses                                                                                   |
+| ------------------------ | --------------------------- | ------------------------------------------------------------------------------------------ |
+| Vérifier un mot          | `GET /api/words/{value}`    | `200 {value, status}` — status : `accepted`/`pending`/`rejected`/`unknown`                 |
+| Proposer un mot          | `POST /api/words` `{value}` | `201 {id, value, status}` · `409` si déjà existant · `422 {error, violations}` si invalide |
+| Obtenir un vote en cours | `GET /api/votes/pending`    | `200 {id, value}` · `204` si aucun mot éligible                                            |
+
+### Sélection du mot à voter (Strategy)
+
+`GET /api/votes/pending` choisit, parmi les mots éligibles, lequel proposer via une
+stratégie configurable (`App\Voting\Selection\WordSelectionStrategyInterface`, alias
+dans `config/services.yaml`) :
+
+- **`ClosestToQuotaStrategy`** (défaut) — le mot ayant le plus de votes.
+  **Justification** : fait converger les votes vers une résolution rapide (un mot
+  proche du quota est tranché plus tôt) plutôt que de les éparpiller et de laisser
+  des mots stagner en `pending`.
+- `OldestPendingStrategy` — le mot le plus ancien (équité FIFO).
+
 ## Tests
 
 Préparer la base de test (une fois), puis lancer la suite — dans le conteneur :

@@ -39,7 +39,6 @@ final class ApiExceptionSubscriber implements EventSubscriberInterface
 
         [$status, $payload] = $this->toPayload($throwable);
 
-
         $event->setResponse(new JsonResponse($payload, $status));
     }
 
