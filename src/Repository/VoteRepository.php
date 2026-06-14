@@ -7,6 +7,7 @@ namespace App\Repository;
 use App\Entity\Player;
 use App\Entity\Vote;
 use App\Entity\Word;
+use App\Enum\VoteValue;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -28,6 +29,11 @@ class VoteRepository extends ServiceEntityRepository
     public function countByWord(Word $word): int
     {
         return $this->count(['word' => $word]);
+    }
+
+    public function countByWordAndValue(Word $word, VoteValue $value): int
+    {
+        return $this->count(['word' => $word, 'value' => $value]);
     }
     //    /**
     //     * @return Vote[] Returns an array of Vote objects
