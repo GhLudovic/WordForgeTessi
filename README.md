@@ -1,4 +1,4 @@
-# WordForge
+# WordForge [![wakatime](https://wakatime.com/badge/user/8da17994-0e2d-4414-aad8-be7b3cf6f984/project/fdbcc112-e6a4-4f25-a97d-4cc4680b7d9f.svg)](https://wakatime.com/badge/user/8da17994-0e2d-4414-aad8-be7b3cf6f984/project/fdbcc112-e6a4-4f25-a97d-4cc4680b7d9f)
 
 Backend d'un **dictionnaire collaboratif**. Les joueurs proposent des mots ; un mot
 inconnu passe en `pending` et est tranché par le vote des **7 premiers** joueurs :
