@@ -1,31 +1,25 @@
 # WordForge
 
-Backend d'un **dictionnaire collaboratif** : les joueurs proposent des mots,
-et chaque mot inconnu est validé par un vote des 7 premiers joueurs.
-
-> Test technique Symfony. Ce README est enrichi au fil des étapes. En l'état :
-> infrastructure, modèle de données et authentification par Bearer token.
+Backend d'un **dictionnaire collaboratif**. Les joueurs proposent des mots ; un mot
+inconnu passe en `pending` et est tranché par le vote des **7 premiers** joueurs :
+`accepted` si la majorité vote `yes`, `rejected` sinon (nombre impair ⇒ pas d'ex-aequo).
+Toutes les routes sont protégées par un Bearer token identifiant le joueur courant.
 
 ## Stack
 
-| Composant     | Version        |
-| ------------- | -------------- |
-| PHP           | 8.4 (FPM)      |
-| Symfony       | 8.1            |
-| Doctrine ORM  | + migrations   |
-| PostgreSQL    | 16             |
-| Serveur web   | nginx 1.27     |
-| Tests         | PHPUnit 13     |
-| Orchestration | Docker Compose |
-
-## Prérequis
-
-- Docker + Docker Compose v2
-
-Aucune installation de PHP/Composer sur la machine hôte n'est nécessaire : tout
-s'exécute dans les conteneurs.
+| Composant      | Version          |
+|----------------|------------------|
+| PHP            | 8.4 (FPM)        |
+| Symfony        | 8.1              |
+| Doctrine ORM   | + migrations     |
+| PostgreSQL     | 16               |
+| Serveur web    | nginx 1.27       |
+| Tests          | PHPUnit 13       |
+| Orchestration  | Docker Compose   |
 
 ## Démarrage
+
+Prérequis : **Docker + Docker Compose v2** (aucune installation de PHP/Composer sur l'hôte).
 
 ```bash
 # 1. Construire et démarrer toute la stack
@@ -37,106 +31,164 @@ docker compose exec php composer install
 # 3. Créer le schéma de base de données
 docker compose exec php php bin/console doctrine:migrations:migrate --no-interaction
 
-# 4. Charger les joueurs de test (tokens fixes, voir « Authentification »)
+# 4. Charger les joueurs de test (tokens fixes, voir ci-dessous)
 docker compose exec php php bin/console doctrine:fixtures:load --no-interaction
 ```
 
-L'application répond alors sur **http://localhost:8080**.
+L'application répond sur **http://localhost:8080**.
 
-> Toutes les routes exigent un Bearer token (voir « Authentification ») :
-> `GET /api/me` sans token renvoie un **401 JSON**.
+| Service    | Hôte   | Conteneur | Surcharge       |
+|------------|--------|-----------|-----------------|
+| nginx      | `8080` | `80`      | `NGINX_PORT`    |
+| PostgreSQL | `5433` | `5432`    | `POSTGRES_PORT` |
 
-### Ports exposés
+> Le port Postgres hôte est `5433` (pas `5432`) pour éviter les conflits avec une
+> instance existante. En cas de conflit sur 8080/5433 :
+> `POSTGRES_PORT=5434 NGINX_PORT=8081 docker compose up -d`.
 
-| Service    | Hôte   | Conteneur |
-| ---------- | ------ | --------- |
-| nginx      | `8080` | `80`      |
-| PostgreSQL | `5433` | `5432`    |
+### Configuration de l'environnement
 
-Le port Postgres hôte est `5433` (et non `5432`) pour éviter les conflits avec
-une instance déjà présente. Ces ports sont surchargeables via `NGINX_PORT` et
-`POSTGRES_PORT`.
+La connexion à la base est pilotée par les variables `POSTGRES_*` de `.env` (versionné,
+valeurs de dev), qui alimentent à la fois le service `database` de `docker-compose.yml`
+et la `DATABASE_URL`. En conteneur, `docker-compose.yml` impose `DATABASE_URL` (hôte
+`database`), **prioritaire** sur les fichiers `.env`. Pour les outils lancés depuis
+l'hôte, créer un `.env.local` (non versionné) pointant sur `127.0.0.1:5433`.
 
-## Configuration de l'environnement
+## Authentification — tokens de test
 
-La connexion à la base est pilotée par les variables `POSTGRES_*` définies dans
-`.env` (versionné, valeurs de développement). Elles alimentent à la fois le
-service `database` de `docker-compose.yml` et la `DATABASE_URL` de Symfony.
-
-Précédence des sources de configuration :
-
-- **En conteneur** : `docker-compose.yml` injecte `DATABASE_URL` comme variable
-  d'environnement réelle (hôte `database`). Elle est **prioritaire** sur les
-  fichiers `.env`, ce qui garantit une connexion correcte même si un
-  `.env.local` traîne dans le projet.
-- **Sur l'hôte** (outils Symfony lancés hors conteneur) : créer un `.env.local`
-  (non versionné) pointant sur `127.0.0.1:5433`. Un exemple est fourni dans
-  le dépôt local.
-
-## Authentification
-
-Toutes les routes sont protégées par un Bearer token qui identifie le joueur
-courant :
+Chaque requête doit inclure le header :
 
 ```
 Authorization: Bearer <token>
 ```
 
-Un token absent ou invalide renvoie un **401 JSON**. Tokens de test (chargés par
-les fixtures) :
+Token absent ou invalide ⇒ **401 JSON**. Joueurs chargés par les fixtures :
 
 | Joueur | Token         |
-| ------ | ------------- |
+|--------|---------------|
 | alice  | `token-alice` |
 | bob    | `token-bob`   |
 | carol  | `token-carol` |
 
-`GET /api/me` renvoie le joueur courant — pratique pour valider un token :
+## Endpoints
+
+Réponses JSON, codes HTTP explicites. `BASE=http://localhost:8080`, `AUTH="Authorization: Bearer token-alice"`.
+
+### `GET /api/me` — joueur courant
+
+Pratique pour valider un token.
+
+- **200** `{"id":1,"username":"alice"}` · **401** sans token valide.
 
 ```bash
-# 401 sans token
-curl -i http://localhost:8080/api/me
-
-# 200 avec un token valide
-curl -i -H "Authorization: Bearer token-alice" http://localhost:8080/api/me
-# → {"id":1,"username":"alice"}
+curl -i -H "$AUTH" "$BASE/api/me"
 ```
 
-## API
+### `GET /api/words/{value}` — vérifier un mot
 
-Toutes les routes exigent un Bearer token ; réponses JSON cohérentes.
+- **200** `{"value":"licorne","status":"pending"}` — `status` ∈ `accepted` / `pending` / `rejected` / `unknown` (mot absent).
 
-| Action                   | Route                       | Réponses                                                                                   |
-| ------------------------ | --------------------------- | ------------------------------------------------------------------------------------------ |
-| Vérifier un mot          | `GET /api/words/{value}`    | `200 {value, status}` — status : `accepted`/`pending`/`rejected`/`unknown`                 |
-| Proposer un mot          | `POST /api/words` `{value}` | `201 {id, value, status}` · `409` si déjà existant · `422 {error, violations}` si invalide |
-| Obtenir un vote en cours | `GET /api/votes/pending`    | `200 {id, value}` · `204` si aucun mot éligible                                            |
+```bash
+curl -i -H "$AUTH" "$BASE/api/words/licorne"
+```
 
-### Sélection du mot à voter (Strategy)
+### `POST /api/words` — proposer un mot
 
-`GET /api/votes/pending` choisit, parmi les mots éligibles, lequel proposer via une
-stratégie configurable (`App\Voting\Selection\WordSelectionStrategyInterface`, alias
-dans `config/services.yaml`) :
+Crée un mot inconnu en `pending` (auteur = joueur courant).
 
-- **`ClosestToQuotaStrategy`** (défaut) — le mot ayant le plus de votes.
-  **Justification** : fait converger les votes vers une résolution rapide (un mot
-  proche du quota est tranché plus tôt) plutôt que de les éparpiller et de laisser
-  des mots stagner en `pending`.
-- `OldestPendingStrategy` — le mot le plus ancien (équité FIFO).
+- Payload : `{"value":"licorne"}`
+- **201** `{"id":1,"value":"licorne","status":"pending"}`
+- **409** si le mot existe déjà (quel que soit son statut)
+- **422** `{"error":"...","violations":[...]}` si invalide (espace, > 32 caractères, vide)
+
+```bash
+curl -i -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"value":"licorne"}' "$BASE/api/words"
+```
+
+### `GET /api/votes/pending` — obtenir un vote en cours
+
+Retourne un mot que le joueur courant peut voter (cf. critères d'éligibilité).
+
+- **200** `{"id":1,"value":"licorne"}` · **204** si aucun mot éligible.
+
+```bash
+curl -i -H "Authorization: Bearer token-bob" "$BASE/api/votes/pending"
+```
+
+### `POST /api/words/{id}/votes` — voter pour un mot
+
+- Payload : `{"value":"yes"}` ou `{"value":"no"}`
+- **201** `{"wordId":1,"status":"pending"}` — `status` du mot après le vote (résolu au 7ᵉ)
+- **403** inéligible (mot non `pending`, son propre mot, déjà voté, quota atteint)
+- **404** mot inexistant · **422** valeur ≠ `yes`/`no`
+
+```bash
+curl -i -H "Authorization: Bearer token-bob" -H "Content-Type: application/json" \
+  -d '{"value":"yes"}' "$BASE/api/words/1/votes"
+```
+
+## Choix techniques
+
+**Architecture en services applicatifs + Events synchrones — pas de CQRS ni Messenger.**
+Le périmètre (un test de quelques heures, noté sur la clarté) ne justifie pas la
+sur-structuration : contrôleurs fins, logique métier dans `WordService` / `VoteService`,
+DTOs en entrée (`#[MapRequestPayload]`) et en sortie. CQRS et un bus de messages
+auraient ajouté de l'indirection sans bénéfice ici ; ils seraient pertinents sur un
+domaine plus riche ou un besoin d'asynchronisme réel (absent ici).
+
+**Validation extensible (étape 4).** Chaque règle implémente `WordConstraintInterface`,
+taguée automatiquement (`#[AutoconfigureTag]`) et collectée par `WordValidator` via
+`#[AutowireIterator]`. **Ajouter une règle = ajouter une classe**, sans toucher à
+l'existant ni à la configuration.
+
+**Éligibilité au vote via un Symfony Voter.** `VoteEligibilityVoter` (attribut
+`CAST_VOTE`, sujet `Word`) encapsule les 4 critères (mot `pending`, non-auteur, non
+déjà voté, quota non atteint). Il est **réutilisé** : le service « obtenir un vote »
+filtre via `Security::isGranted`, et « voter » autorise via `denyAccessUnlessGranted`.
+*Security Voter* à ne pas confondre avec l'entité `Vote`.
+
+**Sélection du mot via Strategy.** `WordSelectionStrategyInterface` + deux
+implémentations ; la stratégie active est un alias dans `config/services.yaml`.
+Défaut **`ClosestToQuotaStrategy`** (le mot le plus voté) : fait converger les votes
+vers une résolution rapide plutôt que de les éparpiller et laisser des mots stagner.
+Alternative `OldestPendingStrategy` (équité FIFO).
+
+**Résolution au 7ᵉ vote via un Event synchrone.** `VoteService::castVote` émet
+`VoteCastEvent` ; le listener `ResolveWordOnVoteCast` tranche le mot. L'événement est
+dispatché **dans la transaction**, donc le listener s'exécute de façon synchrone, sous
+le même verrou — la résolution reste atomique tout en découplant l'enregistrement du
+vote de sa résolution.
+
+**Gestion de la concurrence.** `castVote` ouvre une transaction, pose un **verrou
+pessimiste** (`SELECT … FOR UPDATE`) sur le mot, **re-vérifie le statut dans le verrou**
+(un mot résolu entre-temps est refusé en 409), puis enregistre et résout. Filet de
+sécurité en base : contrainte d'**unicité `(player, word)`** (un seul vote par joueur
+et par mot) et quota impair (pas d'ex-aequo).
+
+**Gestion d'erreurs uniforme.** `ApiExceptionSubscriber` traduit les exceptions sous
+`/api` en JSON cohérent (`{error, violations?}`, codes 409/422/404/500). La sécurité
+reste au firewall : 401 via l'entry point du `TokenAuthenticator`, 403 via
+`JsonAccessDeniedHandler`.
+
+## Démarche
+
+- **TDD strict** : cycle RED → GREEN → REFACTOR, le test écrit et montré en échec avant
+  l'implémentation. Pas de mock de la base (vraie DB, transactions annulées par test via
+  `dama/doctrine-test-bundle`).
+- **Conventional Commits** (en français) reflétant les phases (`test(...)` en RED,
+  `feat(...)` en GREEN, `refactor(...)` ensuite) ; **une PR par unité fonctionnelle**.
 
 ## Tests
 
-Préparer la base de test (une fois), puis lancer la suite — dans le conteneur :
-
 ```bash
+# Préparer la base de test (une fois)
 docker compose exec php php bin/console doctrine:database:create --env=test --if-not-exists
 docker compose exec php php bin/console doctrine:migrations:migrate --env=test --no-interaction
+
+# Lancer la suite
 docker compose exec php composer test
 ```
-
-Chaque test est isolé dans une transaction annulée à la fin
-(`dama/doctrine-test-bundle`) : la base de test n'est jamais polluée entre les
-cas.
 
 ## Qualité
 
@@ -148,10 +200,18 @@ docker compose exec php composer phpstan   # PHPStan niveau 8
 ## Structure du projet
 
 ```
-docker/            # Dockerfiles (php-fpm, nginx) et configuration
-config/            # Configuration Symfony (packages, routes, services)
-src/               # Code applicatif (Entity, Repository, …)
-migrations/        # Migrations Doctrine
-tests/             # Tests PHPUnit
-docker-compose.yml # Orchestration de la stack
+src/
+  Controller/        # contrôleurs fins (un par action)
+  Service/           # WordService, VoteService (logique métier)
+  Dto/               # objets d'entrée (MapRequestPayload) et de sortie
+  Entity/ Enum/      # Player, Word, Vote ; WordStatus, VoteValue
+  Repository/        # accès Doctrine
+  Validation/        # WordValidator + contraintes taguées (extensible)
+  Voting/            # VotingPolicy (quota) + stratégies de sélection
+  Security/          # TokenAuthenticator, Voter d'éligibilité, access denied handler
+  Event/ EventListener/   # VoteCastEvent → résolution du mot
+  Exception/ EventSubscriber/  # exceptions de domaine + réponses JSON
+docker/              # Dockerfiles (php-fpm, nginx) et configuration
+config/ migrations/ tests/
+docker-compose.yml
 ```
